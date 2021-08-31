@@ -14,11 +14,35 @@ import cloudpickle
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from detectron2.utils.file_io import PathManager
-from detectron2.utils.registry import _convert_target_to_string
+from iopath.common.file_io import PathManager as PathManagerBase
 
 __all__ = ["LazyCall", "LazyConfig"]
 
+PathManager = PathManagerBase()
+
+
+def _convert_target_to_string(t: Any) -> str:
+    """
+    Inverse of ``locate()``.
+    Args:
+        t: any object with ``__module__`` and ``__qualname__``
+    """
+    module, qualname = t.__module__, t.__qualname__
+
+    # Compress the path to this object, e.g. ``module.submodule._impl.class``
+    # may become ``module.submodule.class``, if the later also resolves to the same
+    # object. This simplifies the string, and also is less affected by moving the
+    # class implementation.
+    module_parts = module.split(".")
+    for k in range(1, len(module_parts)):
+        prefix = ".".join(module_parts[:k])
+        candidate = f"{prefix}.{qualname}"
+        try:
+            if locate(candidate) is t:
+                return candidate
+        except ImportError:
+            pass
+    return f"{module}.{qualname}"
 
 class LazyCall:
     """
